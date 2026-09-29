@@ -1,73 +1,85 @@
-# Distributed Job Platform — Microservices Architecture
+# 🏢 Distributed Job & Company Management Platform
 
-A containerized, resilient microservices backend platform built with **Spring Boot 3**, **Spring Cloud**, **PostgreSQL**, **RabbitMQ**, and **Docker Compose**.
+<div align="center">
 
-The system implements declarative synchronous inter-service communication with **Spring Cloud OpenFeign**, circuit breaking via **Resilience4j**, dynamic discovery with **Netflix Eureka**, reverse proxy routing through **Spring Cloud Gateway**, and distributed tracing via **Micrometer Tracing & Zipkin**.
+![Spring Boot](https://img.shields.io/badge/Spring_Boot_3-6DB33F?style=for-the-badge&logo=springboot&logoColor=white)
+![Spring Cloud](https://img.shields.io/badge/Spring_Cloud-6DB33F?style=for-the-badge&logo=spring&logoColor=white)
+![PostgreSQL](https://img.shields.io/badge/PostgreSQL_18-4169E1?style=for-the-badge&logo=postgresql&logoColor=white)
+![RabbitMQ](https://img.shields.io/badge/RabbitMQ_AMQP-FF6600?style=for-the-badge&logo=rabbitmq&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker_Compose-2496ED?style=for-the-badge&logo=docker&logoColor=white)
+![Resilience4j](https://img.shields.io/badge/Resilience4j-Circuit_Breaker-F38B00?style=for-the-badge)
+![Zipkin](https://img.shields.io/badge/Zipkin-Distributed_Tracing-black?style=for-the-badge)
+
+<p align="center">
+  A distributed, cloud-native microservices ecosystem designed for high-availability job aggregation, dynamic discovery, fault-tolerant RPC, and asynchronous event streaming.
+</p>
+
+</div>
 
 ---
-
 ## Architecture Diagram
 
 ```mermaid
-flowchart TD
-    %% Styling & Classes
-    classDef client fill:#3b82f6,stroke:#1d4ed8,stroke-width:2px,color:#fff;
-    classDef gateway fill:#8b5cf6,stroke:#6d28d9,stroke-width:2px,color:#fff;
-    classDef service fill:#0ea5e9,stroke:#0284c7,stroke-width:2px,color:#fff;
-    classDef db fill:#059669,stroke:#047857,stroke-width:2px,color:#fff;
-    classDef broker fill:#ea580c,stroke:#c2410c,stroke-width:2px,color:#fff;
-    classDef infra fill:#475569,stroke:#334155,stroke-width:2px,color:#fff;
+flowchart TB
+    %% ================= GLOBAL STYLING =================
+    classDef client fill:#2563eb,stroke:#1d4ed8,stroke-width:2px,color:#ffffff,font-weight:bold;
+    classDef gateway fill:#7c3aed,stroke:#6d28d9,stroke-width:2px,color:#ffffff,font-weight:bold;
+    classDef service fill:#0284c7,stroke:#0369a1,stroke-width:2px,color:#ffffff,font-weight:bold;
+    classDef db fill:#059669,stroke:#047857,stroke-width:2px,color:#ffffff,font-weight:bold;
+    classDef mq fill:#ea580c,stroke:#c2410c,stroke-width:2px,color:#ffffff,font-weight:bold;
+    classDef infra fill:#334155,stroke:#1e293b,stroke-width:2px,color:#ffffff,font-weight:bold;
 
-    Client["Client / Front-End App"]:::client
+    %% ================= CLIENT & EDGE =================
+    Client["Client / Postman / Frontend"]:::client
+    Gateway["Spring Cloud Gateway<br/><code>:8084</code>"]:::gateway
+    Eureka["Eureka Service Registry<br/><code>:8761</code>"]:::infra
 
-    subgraph Edge ["Edge Layer & Service Discovery"]
-        Gateway["Spring Cloud Gateway\n(Port :8084)"]:::gateway
-        Eureka["Eureka Service Registry\n(Port :8761)"]:::infra
+    Client -->|"HTTP Requests"| Gateway
+    Gateway -.->|"Heartbeat & Lookup"| Eureka
+
+    %% ================= MICROSERVICES LAYER =================
+    subgraph Microservices [" Core Domain Microservices "]
+        direction LR
+        JobService["Job Service<br/><code>:8092</code>"]:::service
+        CompanyService["Company Service<br/><code>:8091</code>"]:::service
+        ReviewService["Review Service<br/><code>:8093</code>"]:::service
     end
 
-    subgraph Microservices ["Domain Microservices Layer"]
-        JobService["Job Service\n(Port :8092)"]:::service
-        CompanyService["Company Service\n(Port :8091)"]:::service
-        ReviewService["Review Service\n(Port :8093)"]:::service
+    %% Gateway Routing
+    Gateway -->|"/jobs/**"| JobService
+    Gateway -->|"/companies/**"| CompanyService
+    Gateway -->|"/reviews/**"| ReviewService
+
+    %% Synchronous Inter-Service RPC (OpenFeign)
+    JobService -->|"Feign (Sync)"| CompanyService
+    JobService -->|"Feign (Sync)"| ReviewService
+
+    %% ================= PERSISTENCE LAYER =================
+    subgraph Persistence [" PostgreSQL Isolated Databases "]
+        direction LR
+        JobDB[("job_db<br/><code>:5432</code>")]:::db
+        CompanyDB[("company_db<br/><code>:5432</code>")]:::db
+        ReviewDB[("review_db<br/><code>:5432</code>")]:::db
     end
 
-    subgraph Storage ["PostgreSQL Persistence Layer"]
-        JobDB[("PostgreSQL\n(job_db)")]:::db
-        CompanyDB[("PostgreSQL\n(company_db)")]:::db
-        ReviewDB[("PostgreSQL\n(review_db)")]:::db
+    JobService -->|"JPA / JDBC"| JobDB
+    CompanyService -->|"JPA / JDBC"| CompanyDB
+    ReviewService -->|"JPA / JDBC"| ReviewDB
+
+    %% ================= ASYNC EVENT & OBSERVABILITY =================
+    subgraph InfraLayer [" Messaging & Distributed Observability "]
+        direction LR
+        RabbitMQ{{"RabbitMQ Broker<br/><code>:5672</code> | UI: <code>:15672</code>"}}:::mq
+        Zipkin["Zipkin Distributed Tracing<br/><code>:9412</code>"]:::infra
     end
 
-    subgraph Messaging ["Event-Driven Messaging & Tracing"]
-        RabbitMQ{{"RabbitMQ Broker\n(Exchange & Queues :5672)"}}:::broker
-        Zipkin["Zipkin Tracing Server\n(Port :9412)"]:::infra
-    end
+    %% RabbitMQ Asynchronous Events
+    ReviewService -->|"Publish: review.updated"| RabbitMQ
+    RabbitMQ -->|"Consume: rating recalculation"| CompanyService
 
-    %% Network Flow & Routing
-    Client -->|HTTP / REST| Gateway
-    Gateway -.->|Heartbeat / Registry Lookup| Eureka
-
-    Gateway -->|/jobs/**| JobService
-    Gateway -->|/companies/**| CompanyService
-    Gateway -->|/reviews/**| ReviewService
-
-    %% Synchronous OpenFeign Communications
-    JobService -->|OpenFeign RPC| CompanyService
-    JobService -->|OpenFeign RPC| ReviewService
-
-    %% Database Connections
-    JobService -->|JPA / JDBC| JobDB
-    CompanyService -->|JPA / JDBC| CompanyDB
-    ReviewService -->|JPA / JDBC| ReviewDB
-
-    %% Asynchronous Messaging
-    ReviewService -->|Publish review.updated| RabbitMQ
-    RabbitMQ -->|Consume rating update event| CompanyService
-
-    %% Distributed Tracing
-    JobService -.->|Trace Spans| Zipkin
-    CompanyService -.->|Trace Spans| Zipkin
-    ReviewService -.->|Trace Spans| Zipkin
-    Gateway -.->|Trace Spans| Zipkin
+    %% Distributed Tracing Telemetry
+    Microservices -.->|"Telemetry Spans"| Zipkin
+    Gateway -.->|"Trace Spans"| Zipkin
 ```
 
 ## Core Technologies & Patterns
