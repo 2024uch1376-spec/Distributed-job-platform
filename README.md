@@ -103,29 +103,15 @@ flowchart TD
 ## System Services & Port Allocations
 
 | Component / Container | Port (Host) | Internal Port | Description |
-| --- | --- | --- | --- |
-| **API Gateway** | `8084` | `8084` | Unified edge reverse proxy routing and predicate path handler
-
- |
-| **Service Registry** | `8761` | `8761` | Eureka Server for dynamic heartbeat tracking and service discovery
-
- |
-| **Job Service** | `8092` | `8092` | Manages jobs and aggregates composite DTOs via OpenFeign
-
- |
-| **Company Service** | `8091` | `8091` | Manages company profiles and consumes rating update events
-
- |
-| **Review Service** | `8093` | `8093` | Manages reviews and publishes rating events to RabbitMQ
-
- |
+| :--- | :--- | :--- | :--- |
+| **API Gateway** | `8084` | `8084` | Unified edge reverse proxy routing and predicate path handler |
+| **Service Registry** | `8761` | `8761` | Eureka Server for dynamic heartbeat tracking and service discovery |
+| **Job Service** | `8092` | `8092` | Manages jobs and aggregates composite DTOs via OpenFeign |
+| **Company Service** | `8091` | `8091` | Manages company profiles and consumes rating update events |
+| **Review Service** | `8093` | `8093` | Manages reviews and publishes rating events to RabbitMQ |
 | **PostgreSQL** | `5432` | `5432` | Relational storage hosting `job_db`, `company_db`, and `review_db` |
-| **RabbitMQ** | `5672` / `15672` | `5672` / `15672` | AMQP messaging broker and web management interface
-
- |
-| **Zipkin** | `9412` | `9411` | Distributed span visualizer and latency tracker
-
- |
+| **RabbitMQ** | `5672` / `15672` | `5672` / `15672` | AMQP messaging broker and web management interface |
+| **Zipkin** | `9412` | `9411` | Distributed span visualizer and latency tracker |
 
 ---
 
