@@ -1,0 +1,9 @@
+.env
+.env.local
+*.env
+**/target/
+*.jar
+.idea/
+*.iml
+.vscode/
+**/target/**

@@ -1,0 +1,148 @@
+networks:
+  microservices-net:
+    driver: bridge
+
+volumes:
+  rabbitmq_data:
+
+services:
+  # ==============================================================
+  # Infrastructure Services
+  # ==============================================================
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq
+    hostname: rabbitmq
+    environment:
+      RABBITMQ_ERLANG_COOKIE: "SECRET_COOKIE_RABBITMQ_KEY"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    networks:
+      - microservices-net
+
+  zipkin:
+    image: openzipkin/zipkin
+    container_name: zipkin
+    ports:
+      - "9412:9411"
+    networks:
+      - microservices-net
+
+  # ==============================================================
+  # Platform Services (Registry & Config)
+  # ==============================================================
+  serviceregistry:
+    build:
+      context: ./ServiceReg/Service
+      dockerfile: Dockerfile
+    container_name: serviceregistry
+    ports:
+      - "8761:8761"
+    networks:
+      - microservices-net
+
+  config-server:
+    build:
+      context: ./EnableConfigServer/EnableConfigServer
+      dockerfile: Dockerfile
+    container_name: config-server
+    ports:
+      - "8080:8080"
+    environment:
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://serviceregistry:8761/eureka/
+    depends_on:
+      - serviceregistry
+    networks:
+      - microservices-net
+
+  # ==============================================================
+  # Business Microservices
+  # ==============================================================
+  company-service:
+    build:
+      context: ./Company-Micro/Company-Micro
+      dockerfile: Dockerfile
+    container_name: company-service
+    ports:
+      - "8091:8091"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://host.docker.internal:5432/company_db
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: anuj2312
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_PORT: 5672
+      MANAGEMENT_ZIPKIN_TRACING_ENDPOINT: http://zipkin:9411/api/v2/spans
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://serviceregistry:8761/eureka/
+      EUREKA_INSTANCE_PREFER_IP_ADDRESS: "true"
+    depends_on:
+      - rabbitmq
+      - serviceregistry
+    networks:
+      - microservices-net
+
+  reviews-service:
+    build:
+      context: ./Reviews-Micro/Reviews-Micro
+      dockerfile: Dockerfile
+    container_name: reviews-service
+    ports:
+      - "8093:8093"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://host.docker.internal:5432/review_db
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: anuj2312
+      SPRING_RABBITMQ_HOST: rabbitmq
+      SPRING_RABBITMQ_PORT: 5672
+      MANAGEMENT_ZIPKIN_TRACING_ENDPOINT: http://zipkin:9411/api/v2/spans
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://serviceregistry:8761/eureka/
+      EUREKA_INSTANCE_PREFER_IP_ADDRESS: "true"
+    depends_on:
+      - rabbitmq
+      - serviceregistry
+    networks:
+      - microservices-net
+
+  job-service:
+    build:
+      context: ./Job-Micro/Job-Micro
+      dockerfile: Dockerfile
+    container_name: job-service
+    ports:
+      - "8092:8092"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:postgresql://host.docker.internal:5432/job_db
+      SPRING_DATASOURCE_USERNAME: postgres
+      SPRING_DATASOURCE_PASSWORD: anuj2312
+      MANAGEMENT_ZIPKIN_TRACING_ENDPOINT: http://zipkin:9411/api/v2/spans
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://serviceregistry:8761/eureka/
+      SPRING_CONFIG_IMPORT: optional:configserver:http://config-server:8080
+      EUREKA_INSTANCE_PREFER_IP_ADDRESS: "true"
+    depends_on:
+      - serviceregistry
+    networks:
+      - microservices-net
+
+  api-gateway:
+    build:
+      context: ./API/API
+      dockerfile: Dockerfile
+    container_name: api-gateway
+    ports:
+      - "8084:8084"
+    environment:
+      EUREKA_CLIENT_SERVICEURL_DEFAULTZONE: http://serviceregistry:8761/eureka/
+      MANAGEMENT_ZIPKIN_TRACING_ENDPOINT: http://zipkin:9411/api/v2/spans
+      EUREKA_INSTANCE_PREFER_IP_ADDRESS: "true"
+    depends_on:
+      - serviceregistry
+    networks:
+      - microservices-net
