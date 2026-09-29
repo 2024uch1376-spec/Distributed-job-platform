@@ -8,47 +8,66 @@ The system implements declarative synchronous inter-service communication with *
 
 ## Architecture Diagram
 
-```text
-                               +-----------------------------+
-                               |     Client / Front-End      |
-                               +--------------+--------------+
-                                              |
-                                              v [HTTP / Port 8084]
-                        +------------------------------------------+
-                        |           Spring Cloud Gateway           |
-                        +---------------------+--------------------+
-                                              |
-                     +------------------------+------------------------+
-                     |                        |                        |
-                     v                        v                        v
-             /jobs/**                 /companies/**             /reviews/**
-                     |                        |                        |
-        +------------+-----------+  +---------+------------+  +--------+-----------+
-        |       Job Service      |  |   Company Service    |  |   Review Service   |
-        |       (Port 8092)      |  |     (Port 8091)      |  |    (Port 8093)     |
-        +------------+-----------+  +---------+------------+  +--------+-----------+
-                     |                        ^                        ^
-                     |--- OpenFeign (Sync) ---|                        |
-                     |------------------------ OpenFeign (Sync) -------|
-                     |                                                 |
-                     |                                    RabbitMQ (Async Event)
-                     |                               [review.updated / rating updates]
-                     |                                                 |
-                     |                                                 v
-                     |                                    +------------+-----------+
-                     |                                    |    Company Consumer    |
-                     |                                    | (Recalculates Rating)  |
-                     |                                    +------------------------+
-                     |                        |                        |
-                     v                        v                        v
-            [ job_db ] (Postgres)    [ company_db ] (Postgres) [ review_db ] (Postgres)
+```mermaid
+flowchart TD
+    %% Styling & Classes
+    classDef client fill:#3b82f6,stroke:#1d4ed8,stroke-width:2px,color:#fff;
+    classDef gateway fill:#8b5cf6,stroke:#6d28d9,stroke-width:2px,color:#fff;
+    classDef service fill:#0ea5e9,stroke:#0284c7,stroke-width:2px,color:#fff;
+    classDef db fill:#059669,stroke:#047857,stroke-width:2px,color:#fff;
+    classDef broker fill:#ea580c,stroke:#c2410c,stroke-width:2px,color:#fff;
+    classDef infra fill:#475569,stroke:#334155,stroke-width:2px,color:#fff;
 
-================================ Infrastructure & Observability ================================
-     [ Eureka Service Registry : 8761 ]        [ Zipkin Tracing : 9412 ]        [ RabbitMQ UI : 15672 ]
+    Client["Client / Front-End App"]:::client
 
-```
+    subgraph Edge ["Edge Layer & Service Discovery"]
+        Gateway["Spring Cloud Gateway\n(Port :8084)"]:::gateway
+        Eureka["Eureka Service Registry\n(Port :8761)"]:::infra
+    end
 
----
+    subgraph Microservices ["Domain Microservices Layer"]
+        JobService["Job Service\n(Port :8092)"]:::service
+        CompanyService["Company Service\n(Port :8091)"]:::service
+        ReviewService["Review Service\n(Port :8093)"]:::service
+    end
+
+    subgraph Storage ["PostgreSQL Persistence Layer"]
+        JobDB[("PostgreSQL\n(job_db)")]:::db
+        CompanyDB[("PostgreSQL\n(company_db)")]:::db
+        ReviewDB[("PostgreSQL\n(review_db)")]:::db
+    end
+
+    subgraph Messaging ["Event-Driven Messaging & Tracing"]
+        RabbitMQ{{"RabbitMQ Broker\n(Exchange & Queues :5672)"}}:::broker
+        Zipkin["Zipkin Tracing Server\n(Port :9412)"]:::infra
+    end
+
+    %% Network Flow & Routing
+    Client -->|HTTP / REST| Gateway
+    Gateway -.->|Heartbeat / Registry Lookup| Eureka
+
+    Gateway -->|/jobs/**| JobService
+    Gateway -->|/companies/**| CompanyService
+    Gateway -->|/reviews/**| ReviewService
+
+    %% Synchronous OpenFeign Communications
+    JobService -->|OpenFeign RPC| CompanyService
+    JobService -->|OpenFeign RPC| ReviewService
+
+    %% Database Connections
+    JobService -->|JPA / JDBC| JobDB
+    CompanyService -->|JPA / JDBC| CompanyDB
+    ReviewService -->|JPA / JDBC| ReviewDB
+
+    %% Asynchronous Messaging
+    ReviewService -->|Publish review.updated| RabbitMQ
+    RabbitMQ -->|Consume rating update event| CompanyService
+
+    %% Distributed Tracing
+    JobService -.->|Trace Spans| Zipkin
+    CompanyService -.->|Trace Spans| Zipkin
+    ReviewService -.->|Trace Spans| Zipkin
+    Gateway -.->|Trace Spans| Zipkin
 
 ## Core Technologies & Patterns
 
