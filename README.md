@@ -68,6 +68,7 @@ flowchart TD
     CompanyService -.->|Trace Spans| Zipkin
     ReviewService -.->|Trace Spans| Zipkin
     Gateway -.->|Trace Spans| Zipkin
+```
 
 ## Core Technologies & Patterns
 
